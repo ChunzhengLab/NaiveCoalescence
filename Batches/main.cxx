@@ -104,8 +104,8 @@ float GetDistence(TVector2 p0, TVector2 p1, TVector2 p2) {
   float y0 = p0.Y();
   float x1 = p1.X();
   float y1 = p1.Y();
-  float x2 = p1.X();
-  float y2 = p1.Y();
+  float x2 = p2.X();
+  float y2 = p2.Y();
   return 1. / 3 *
          (sqrt((x0 - x1) * (x0 - x1) + (y0 - y1) * (y0 - y1)) + sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2)) +
           sqrt((x2 - x0) * (x2 - x0) + (y2 - y0) * (y2 - y0)));

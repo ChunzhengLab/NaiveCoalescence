@@ -1,9 +1,10 @@
-#include <algorithm>
-#include <chrono>  // std::chrono::system_clock
-#include <cmath>
+#include <fstream>
 #include <iostream>
+#include <chrono>  // std::chrono::system_clock
 #include <random>  // std::default_random_engine
+#include <cmath>
 #include <vector>
+#include <algorithm>
 
 #include "TCanvas.h"
 #include "TFile.h"
@@ -20,104 +21,28 @@
 #include "Particle.h"
 
 using namespace std;
-const int nPartons = 60;
-const int nAntiPartons = 60;
-const float rM = 1;
+const float mass_pion = 0.1395;
+const float mass_proton = 0.938;
+const bool shuffle_mode = 0;
 
-// class Parton {
-//  private:
-//   unsigned int serial_number;
-//   float baryon_number;
-//   TVector2 position_vector;
-
-//  public:
-//   Parton() {
-//     serial_number = 9999;
-//     baryon_number = -999;
-//     position_vector.SetX(-999);
-//     position_vector.SetY(-999);
-//   };
-//   void SetSerialNumber(unsigned int n) { serial_number = n; }
-//   void SetBaryonNumber(float bn) { baryon_number = bn; }
-//   void SetPositionVector(float x, float y) { position_vector.Set(x, y); }
-//   void SetPositionVector(TVector2 pv) { position_vector = pv; }
-
-//   unsigned int GetSerialNumber() { return serial_number; }
-//   float GetBaryonNumber() { return baryon_number; }
-//   TVector2 GetPositionVector() { return position_vector; }
-// };
-
-// class Hardon {
-//  protected:
-//   unsigned int serial_number;
-//   int baryon_number;
-//   TVector2 position_vector;
-//   float mean_distance;
-//   vector<unsigned int> vec_partons_serial_number;
-//   vector<float> vec_partons_baryon_number;
-//   vector<TVector2> vec_partons_position;
-
-//  public:
-//   Hardon() {
-//     serial_number = -999;
-//     baryon_number = 9999;
-//     position_vector.SetX(-999);
-//     position_vector.SetY(-999);
-//     mean_distance = -999;
-//     vector<unsigned int>().swap(vec_partons_serial_number);
-//     vector<float>().swap(vec_partons_baryon_number);
-//     vector<TVector2>().swap(vec_partons_position);
-//   }
-//   void SetSerialNumber(unsigned int n) { serial_number = n; }
-//   void SetBaryonNumber(int bn) { baryon_number = bn; }
-//   void SetPositionVector(float x, float y) { position_vector.Set(x, y); }
-//   void SetPositionVector(TVector2 pv) { position_vector = pv; }
-//   void SetMeanDistance(float dis) { mean_distance = dis; }
-//   void SetVecPartonsSerialNumber(vector<unsigned int> sm) { vec_partons_serial_number.assign(sm.begin(), sm.end()); }
-//   void SetVecPartonsBaryonNumber(vector<float> bn) { vec_partons_baryon_number.assign(bn.begin(), bn.end()); }
-//   void SetVecPartonsPosition(vector<TVector2> vecpv) { vec_partons_position.assign(vecpv.begin(), vecpv.end()); }
-
-//   unsigned int GetSerialNumber() { return serial_number; }
-//   int GetBaryonNumber() { return baryon_number; }
-//   TVector2 GetPositionVector() { return position_vector; }
-//   float GetDistance() { return mean_distance; }
-//   vector<unsigned int> GetVecPartonsSerialNumber() { return vec_partons_serial_number; }
-//   vector<float> GetVecPartonsBaryonNumber() { return vec_partons_baryon_number; }
-//   vector<TVector2> GetVecPartonsPosition() { return vec_partons_position; }
-// };
-
-// class HardonCandidate : public Hardon {
-//  public:
-//   friend bool operator<(const HardonCandidate& a, const HardonCandidate& b) { return a.mean_distance < b.mean_distance; }
-// };
-
-float GetDistence(float x0, float y0, float x1, float y1) { return rM * sqrt((x0 - x1) * (x0 - x1) + (y0 - y1) * (y0 - y1)); }
 float GetDistence(TVector2 p0, TVector2 p1) {
-  float x0 = p0.X();
-  float y0 = p0.Y();
-  float x1 = p1.X();
-  float y1 = p1.Y();
-  return sqrt((x0 - x1) * (x0 - x1) + (y0 - y1) * (y0 - y1));
+  float dis = (p0 - p1).Mod();
+  return dis;
 }
 float GetDistence(TVector2 p0, TVector2 p1, TVector2 p2) {
-  float x0 = p0.X();
-  float y0 = p0.Y();
-  float x1 = p1.X();
-  float y1 = p1.Y();
-  float x2 = p2.X();
-  float y2 = p2.Y();
-  return 1. / 3 *
-         (sqrt((x0 - x1) * (x0 - x1) + (y0 - y1) * (y0 - y1)) + sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2)) +
-          sqrt((x2 - x0) * (x2 - x0) + (y2 - y0) * (y2 - y0)));
+  float dis = 1./3.* ((p0-p1).Mod() + (p1-p2).Mod() + (p2-p0).Mod());
+  return dis;
 }
 
-const int MaxNumTracks = 100000;
+const int MaxNumTracks = 50000;
 typedef struct {
   unsigned int nevent;
   unsigned int multi;
   int fBaryonNumber[MaxNumTracks];
   float fHadronX[MaxNumTracks];
   float fHadronY[MaxNumTracks];
+  float fHadronPx[MaxNumTracks];
+  float fHadronPy[MaxNumTracks];
   float fDistance[MaxNumTracks];
   float fParton0BaryonNumber[MaxNumTracks];
   float fParton0X[MaxNumTracks];
@@ -130,14 +55,46 @@ typedef struct {
   float fParton2Y[MaxNumTracks];
 } Cell_t;
 
-int main() {
-  // Generate 10,000 events
+int main(int argc, char** argv) {
+  unsigned int nEvents      = 0;
+  unsigned int nPartons     = 0;
+  unsigned int nAntiPartons = 0;
+  double rM = 0;
+  float rho0 = 0.;
+  float rho2 = 0.;
+
+  char* FileInput = 0;
+  char* FileOutput = 0;
+  if (argc != 3 && argc != 1) return 0;
+  if (argc == 3) {
+    FileInput = argv[1];
+    FileOutput = argv[2];
+  }
+
+  ifstream filein;
+  filein.open(FileInput);
+  if (!filein) return (0);
+
+  while (filein.good()) {
+    filein >> nEvents >> nPartons >> nAntiPartons >> rM >> rho0 >> rho2;
+  }
+  cout << "nEvents      = " << nEvents << endl;
+  cout << "nPartons     = " << nPartons << endl;
+  cout << "nAntiPartons = " << nAntiPartons << endl;
+  cout << "rM           = " << rM << endl;
+  cout << "rho0         = " << rho0 << endl;
+  cout << "rho2         = " << rho2 << endl;
+  filein.close();
+  
+  // Generate events
   TTree* tree = new TTree("CoalData", "CoalData DST Tree");
   Cell_t cell;
   tree->Branch("Event", &cell.nevent, "nevent/I:multi/I");
   tree->Branch("BaryonNum", cell.fBaryonNumber, "BaryonNum[multi]/I");
   tree->Branch("HadronX", cell.fHadronX, "HadronX[multi]/F");
   tree->Branch("HadronY", cell.fHadronY, "HadronY[multi]/F");
+  tree->Branch("HadronPx", cell.fHadronPx, "HadronPx[multi]/F");
+  tree->Branch("HadronPy", cell.fHadronPy, "HadronPy[multi]/F");
   tree->Branch("Distance", cell.fDistance, "Distance[multi]/F");
   tree->Branch("Parton0BaryonNum", cell.fParton0BaryonNumber, "Parton0BaryonNumber[multi]/F");
   tree->Branch("Parton0X", cell.fParton0X, "Parton0X[multi]/F");
@@ -148,15 +105,14 @@ int main() {
   tree->Branch("Parton2BaryonNum", cell.fParton2BaryonNumber, "Parton2BaryonNumber[multi]/F");
   tree->Branch("Parton2X", cell.fParton2X, "Parton2X[multi]/F");
   tree->Branch("Parton2Y", cell.fParton2Y, "Parton2Y[multi]/F");
-  for (size_t iEvent = 0; iEvent < 20000; iEvent++) {
-    if (iEvent % 100 == 0) std::cout << "Processing event # " << iEvent << endl;
-    // cell.nevent = iEvent;
+  for (size_t iEvent = 0; iEvent < nEvents; iEvent++) {
+    if (iEvent % 1000 == 0) std::cout << "Processing event # " << iEvent << endl;
     // Seed Partons
     vector<Parton> vecPartons;
     unsigned int seed = std::chrono::system_clock::now().time_since_epoch().count();
     TRandom3* rndm = new TRandom3(seed);
     unsigned int n = 0;
-    for (int i = 0; i < nPartons; i++) {
+    for (size_t i = 0; i < nPartons; i++) {
       Parton parton;
       parton.SetBaryonNumber(1. / 3.);
       float r = rndm->Uniform(0, 1);
@@ -166,7 +122,7 @@ int main() {
       vecPartons.push_back(parton);
       n++;
     }
-    for (int i = 0; i < nAntiPartons; i++) {
+    for (size_t i = 0; i < nAntiPartons; i++) {
       Parton antiparton;
       antiparton.SetBaryonNumber(-1. / 3.);
       float r = rndm->Uniform(0, 1);
@@ -186,7 +142,7 @@ int main() {
       for (size_t j = i + 1; j < vecPartons.size(); j++) {
         bool ismeson = fabs(vecPartons[i].GetBaryonNumber() + vecPartons[j].GetBaryonNumber()) < 1.e-6;
         if (ismeson) {
-          float distance = GetDistence(vecPartons[i].GetPositionVector(), vecPartons[j].GetPositionVector());
+          float distance = rM * GetDistence(vecPartons[i].GetPositionVector(), vecPartons[j].GetPositionVector());
           float x = 0.5 * (vecPartons[i].GetPositionVector() + vecPartons[j].GetPositionVector()).X();
           float y = 0.5 * (vecPartons[i].GetPositionVector() + vecPartons[j].GetPositionVector()).Y();
 
@@ -252,9 +208,16 @@ int main() {
         }
       }
     }
+    
 
+    if(!shuffle_mode) {
     // sort the hardon candidates by the distance
     sort(vecHardonCandidates.begin(), vecHardonCandidates.end());
+    } else {
+      // shuffle the hardon candidates
+      shuffle(vecHardonCandidates.begin(),vecHardonCandidates.end(),std::default_random_engine(seed));
+    }
+
     // to record the partons have been used
     vector<unsigned int> vecNodedBuffer;
     // to record the Hardons
@@ -304,16 +267,24 @@ int main() {
         cell.fParton2BaryonNumber[i] = hardon.GetVecPartonsBaryonNumber()[2];
         cell.fParton2X[i] = hardon.GetVecPartonsPosition()[2].X();
         cell.fParton2Y[i] = hardon.GetVecPartonsPosition()[2].Y();
+        hardon.SampleRawMomentum(mass_proton);
+        hardon.MomentumBoost(rho0,rho2);
+        cell.fHadronPx[i] = hardon.GetP().Px();
+        cell.fHadronPy[i] = hardon.GetP().Py();
       } else {
         cell.fParton2BaryonNumber[i] = -999;
         cell.fParton2X[i] = -999;
         cell.fParton2Y[i] = -999;
+        hardon.SampleRawMomentum(mass_pion);
+        hardon.MomentumBoost(rho0,rho2);
+        cell.fHadronPx[i] = hardon.GetP().Px();
+        cell.fHadronPy[i] = hardon.GetP().Py();
       }
       i++;
     }
     tree->Fill();
   }  // generate events end;
-  TFile* file = new TFile("CoaleEvent.root", "RECREATE");
+  TFile* file = new TFile(FileOutput, "RECREATE");
   file->cd();
   tree->Write();
   file->Close();

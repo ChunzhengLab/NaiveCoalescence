@@ -18,26 +18,6 @@ const int nPartons = 24;
 const int nAntiPartons = 24;
 const float rM = 1.;
 
-// TODO
-// TVector2 GetCentre(TVector2 p0, TVector2 p1, TVector2 p2) {
-//   float x0 = p0.X();
-//   float y0 = p0.Y();
-//   float x1 = p1.X();
-//   float y1 = p1.Y();
-//   float x2 = p1.X();
-//   float y2 = p1.Y();
-
-//   float d1 = (x1*x1 + y1*y1) - (x0*x0 + y0*y0);
-//   float d2 = (x2*x2 + y2*y2) - (x1*x1 + y1*y1);
-//   float fm = 2.*((y2-y1)*(x1-x0) - (y1-y0)*(x2-x1));
-
-//   float x = ((y2-y1) * d1 - (y1-y0) * d2)/fm;
-//   float y = ((y2-y1) * d1 - (y1-y0) * d2)/fm;
-
-//   TVector2 centre(x,y);
-//   return centre;
-// }
-
 float GetDistence(float x0, float y0, float x1, float y1) { return rM * sqrt((x0 - x1) * (x0 - x1) + (y0 - y1) * (y0 - y1)); }
 float GetDistence(TVector2 p0, TVector2 p1) {
   float x0 = p0.X();

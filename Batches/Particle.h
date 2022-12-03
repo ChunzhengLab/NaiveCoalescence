@@ -1,5 +1,8 @@
 #include <vector>
 #include "TVector2.h"
+#include "TVector3.h"
+#include "TLorentzVector.h"
+#include "TF1.h"
 using namespace std;
 
 class Parton {
@@ -29,6 +32,7 @@ class Hardon {
   unsigned int serial_number;
   int baryon_number;
   TVector2 position_vector;
+  TLorentzVector p;
   float mean_distance;
   vector<unsigned int> vec_partons_serial_number;
   vector<float> vec_partons_baryon_number;
@@ -39,6 +43,7 @@ class Hardon {
     baryon_number = 9999;
     position_vector.SetX(-999);
     position_vector.SetY(-999);
+    p.SetXYZT(-999,-999,-999,-999);
     mean_distance = -999;
     vector<unsigned int>().swap(vec_partons_serial_number);
     vector<float>().swap(vec_partons_baryon_number);
@@ -48,10 +53,13 @@ class Hardon {
   void SetBaryonNumber(int bn) { baryon_number = bn; }
   void SetPositionVector(float x, float y) { position_vector.Set(x, y); }
   void SetPositionVector(TVector2 pv) { position_vector = pv; }
+  void SetP(TLorentzVector momentum) { p = momentum; }
   void SetMeanDistance(float dis) { mean_distance = dis; }
   void SetVecPartonsSerialNumber(vector<unsigned int> sm) { vec_partons_serial_number.assign(sm.begin(), sm.end()); }
   void SetVecPartonsBaryonNumber(vector<float> bn) { vec_partons_baryon_number.assign(bn.begin(), bn.end()); }
   void SetVecPartonsPosition(vector<TVector2> vecpv) { vec_partons_position.assign(vecpv.begin(), vecpv.end()); }
+  void SampleRawMomentum(float mass);
+  void MomentumBoost(float rho0, float rho2);
 
   unsigned int GetSerialNumber() { return serial_number; }
   int GetBaryonNumber() { return baryon_number; }
@@ -60,6 +68,7 @@ class Hardon {
   vector<unsigned int> GetVecPartonsSerialNumber() { return vec_partons_serial_number; }
   vector<float> GetVecPartonsBaryonNumber() { return vec_partons_baryon_number; }
   vector<TVector2> GetVecPartonsPosition() { return vec_partons_position; }
+  TLorentzVector GetP() {return p; }
 };
 
 class HardonCandidate : public Hardon {

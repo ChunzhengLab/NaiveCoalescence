@@ -1,5 +1,5 @@
 OBJS = Particle.o main.o
-EXE = CoaleBathes
+EXE = CoaleBatches
 
 ROOTCFLAGS    = $(shell root-config --cflags)
 ROOTLIBS      = $(shell root-config --libs)

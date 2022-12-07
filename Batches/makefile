@@ -6,7 +6,7 @@ ROOTLIBS      = $(shell root-config --libs)
 ROOTGLIBS     = $(shell root-config --glibs)
 
 INCFLAGS = -I$(ROOTSYS)/include
-LDFLAGS = -L$(ROOTSYS)/lib
+# LDFLAGS = -L$(ROOTSYS)/lib
 
 CXX = g++ -std=c++17
 FLAGS = -Wall -g $(INCFLAGS) $(LDFLAGS)

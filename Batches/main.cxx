@@ -21,9 +21,9 @@
 #include "Particle.h"
 
 using namespace std;
-const float mass_pion = 0.1395;
-const float mass_proton = 0.938;
-const bool shuffle_mode = 0;
+const float mass_pion = 0.13957039;
+const float mass_proton = 0.93827208816;
+const bool shuffle_mode = false;
 
 float GetDistence(TVector2 p0, TVector2 p1) {
   float dis = (p0 - p1).Mod();
@@ -34,7 +34,19 @@ float GetDistence(TVector2 p0, TVector2 p1, TVector2 p2) {
   return dis;
 }
 
-const int MaxNumTracks = 50000;
+Parton GetLBCFriendForThisParton(Parton parton, float sigmaLBC ,float bn_friend) {
+  Parton partonLBC;
+  partonLBC.SetBaryonNumber(bn_friend);
+  float r = gRandom->Uniform(0,1);
+  float phi = parton.GetPositionVector().Phi();
+  float dphi = gRandom->Gaus(0, sigmaLBC);
+  phi += dphi;
+  partonLBC.SetPositionVector(sqrt(r) * cos(phi), sqrt(r) * sin(phi));
+  partonLBC.SetSerialNumber(-parton.GetSerialNumber());
+  return partonLBC;
+}
+
+const int MaxNumTracks = 100000;
 typedef struct {
   unsigned int nevent;
   unsigned int multi;
@@ -56,13 +68,16 @@ typedef struct {
 } Cell_t;
 
 int main(int argc, char** argv) {
-  unsigned int nEvents      = 0;
-  unsigned int nPartons     = 0;
-  unsigned int nAntiPartons = 0;
-  double rM = 0;
+  unsigned int nEvents = 10000;
+  unsigned int nPartons = 30;
+  unsigned int nAntiPartons = 30;
+  float rM = 1.5;
   float rho0 = 0.;
   float rho2 = 0.;
-
+  float frac_qq = 1;
+  float frac_qqbar = 1;
+  float sigmaLBC = 0.1;
+  
   char* FileInput = 0;
   char* FileOutput = 0;
   if (argc != 3 && argc != 1) return 0;
@@ -76,15 +91,19 @@ int main(int argc, char** argv) {
   if (!filein) return (0);
 
   while (filein.good()) {
-    filein >> nEvents >> nPartons >> nAntiPartons >> rM >> rho0 >> rho2;
+    filein >> nEvents >> nPartons >> nAntiPartons >> rM >> rho0 >> rho2 >> frac_qq >> frac_qqbar >> sigmaLBC;
   }
+  filein.close();
   cout << "nEvents      = " << nEvents << endl;
   cout << "nPartons     = " << nPartons << endl;
   cout << "nAntiPartons = " << nAntiPartons << endl;
   cout << "rM           = " << rM << endl;
   cout << "rho0         = " << rho0 << endl;
   cout << "rho2         = " << rho2 << endl;
-  filein.close();
+  cout << "frac_qq      = " << rho2 << endl;
+  cout << "frac_qqbar   = " << rho2 << endl;
+  cout << "sigmaLBC     = " << sigmaLBC << endl;
+  sigmaLBC *= TMath::Pi();
   
   // Generate events
   TTree* tree = new TTree("CoalData", "CoalData DST Tree");
@@ -105,12 +124,15 @@ int main(int argc, char** argv) {
   tree->Branch("Parton2BaryonNum", cell.fParton2BaryonNumber, "Parton2BaryonNumber[multi]/F");
   tree->Branch("Parton2X", cell.fParton2X, "Parton2X[multi]/F");
   tree->Branch("Parton2Y", cell.fParton2Y, "Parton2Y[multi]/F");
+
+  unsigned int seed = std::chrono::system_clock::now().time_since_epoch().count();
+  TRandom3* rndm = new TRandom3(seed);
+
   for (size_t iEvent = 0; iEvent < nEvents; iEvent++) {
     if (iEvent % 1000 == 0) std::cout << "Processing event # " << iEvent << endl;
     // Seed Partons
     vector<Parton> vecPartons;
-    unsigned int seed = std::chrono::system_clock::now().time_since_epoch().count();
-    TRandom3* rndm = new TRandom3(seed);
+    vector<Parton> vecAntiPartonsTemp;
     unsigned int n = 0;
     for (size_t i = 0; i < nPartons; i++) {
       Parton parton;
@@ -120,6 +142,8 @@ int main(int argc, char** argv) {
       parton.SetPositionVector(sqrt(r) * cos(phi), sqrt(r) * sin(phi));
       parton.SetSerialNumber(n);
       vecPartons.push_back(parton);
+      if (rndm->Uniform(0,1) < frac_qq)    vecPartons.push_back(GetLBCFriendForThisParton(parton, sigmaLBC,  1./3.));
+      if (rndm->Uniform(0,1) < frac_qqbar) vecPartons.push_back(GetLBCFriendForThisParton(parton, sigmaLBC, -1./3.));
       n++;
     }
     for (size_t i = 0; i < nAntiPartons; i++) {
@@ -129,11 +153,16 @@ int main(int argc, char** argv) {
       float phi = rndm->Uniform(0, TMath::TwoPi());
       antiparton.SetPositionVector(sqrt(r) * cos(phi), sqrt(r) * sin(phi));
       antiparton.SetSerialNumber(n);
-      vecPartons.push_back(antiparton);
+      vecAntiPartonsTemp.push_back(antiparton);
+      if (rndm->Uniform(0,1) < frac_qq)    vecAntiPartonsTemp.push_back(GetLBCFriendForThisParton(antiparton, sigmaLBC, -1./3.));
+      if (rndm->Uniform(0,1) < frac_qqbar) vecAntiPartonsTemp.push_back(GetLBCFriendForThisParton(antiparton, sigmaLBC,  1./3.));
       n++;
     }
-    delete rndm;
-    rndm = nullptr;
+    shuffle(vecPartons.begin(),vecPartons.end(),std::default_random_engine(seed+1));
+    shuffle(vecAntiPartonsTemp.begin(),vecAntiPartonsTemp.end(),std::default_random_engine(seed+2));
+    vecPartons.resize(nPartons);
+    vecAntiPartonsTemp.resize(nAntiPartons);
+    vecPartons.insert(vecPartons.end(), vecAntiPartonsTemp.begin(), vecAntiPartonsTemp.end());
 
     vector<HardonCandidate> vecHardonCandidates;
     // Get Meson Candidates
@@ -208,7 +237,6 @@ int main(int argc, char** argv) {
         }
       }
     }
-    
 
     if(!shuffle_mode) {
     // sort the hardon candidates by the distance
@@ -284,6 +312,10 @@ int main(int argc, char** argv) {
     }
     tree->Fill();
   }  // generate events end;
+  
+  delete rndm;
+  rndm = nullptr;
+
   TFile* file = new TFile(FileOutput, "RECREATE");
   file->cd();
   tree->Write();

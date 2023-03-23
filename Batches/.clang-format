@@ -1,0 +1,7 @@
+# 格式化风格: Google
+BasedOnStyle: Google
+ColumnLimit: 0
+AllowShortIfStatementsOnASingleLine: true
+AllowShortLoopsOnASingleLine: true
+
+

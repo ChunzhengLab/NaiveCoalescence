@@ -1,15 +1,17 @@
 #include <vector>
+
+#include "TF1.h"
+#include "TLorentzVector.h"
 #include "TVector2.h"
 #include "TVector3.h"
-#include "TLorentzVector.h"
-#include "TF1.h"
 using namespace std;
 
 class Parton {
  private:
-  int serial_number;
+  unsigned int serial_number;
   float baryon_number;
   TVector2 position_vector;
+
  public:
   Parton() {
     serial_number = 9999;
@@ -37,13 +39,14 @@ class Hardon {
   vector<unsigned int> vec_partons_serial_number;
   vector<float> vec_partons_baryon_number;
   vector<TVector2> vec_partons_position;
+
  public:
   Hardon() {
     serial_number = -999;
     baryon_number = 9999;
     position_vector.SetX(-999);
     position_vector.SetY(-999);
-    p.SetXYZT(-999,-999,-999,-999);
+    p.SetXYZT(-999, -999, -999, -999);
     mean_distance = -999;
     vector<unsigned int>().swap(vec_partons_serial_number);
     vector<float>().swap(vec_partons_baryon_number);
@@ -68,11 +71,12 @@ class Hardon {
   vector<unsigned int> GetVecPartonsSerialNumber() { return vec_partons_serial_number; }
   vector<float> GetVecPartonsBaryonNumber() { return vec_partons_baryon_number; }
   vector<TVector2> GetVecPartonsPosition() { return vec_partons_position; }
-  TLorentzVector GetP() {return p; }
+  TLorentzVector GetP() { return p; }
 };
 
 class HardonCandidate : public Hardon {
  public:
-  friend bool operator<(const HardonCandidate& a, const HardonCandidate& b) { return a.mean_distance < b.mean_distance; }
+  friend bool operator<(const HardonCandidate& a, const HardonCandidate& b) {
+    return a.mean_distance < b.mean_distance;
+  }
 };
-

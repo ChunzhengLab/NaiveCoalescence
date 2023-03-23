@@ -29,14 +29,17 @@ using namespace std;
 const float mass_pion = 0.13957039;
 const float mass_proton = 0.93827208816;
 const bool shuffle_mode = false;
-const bool global_sort_mode = true;  // very slow for large nPartons
+const bool global_sort_mode = false;  // very slow for a large nPartons
 const bool debug = true;
 
-void GetHadrons(vector<Hardon>& vecHardons, vector<Parton>& vecPartons, float rM);
+void GetRestPartons(vector<Parton>& vecPartonsRest, vector<Parton>& vecPartons, vector<unsigned int>& vecNodedBuffer);
+void GetHadrons(vector<Hardon>& vecHardons, vector<Parton>& vecPartons, vector<unsigned int>& vecNodedBuffer, float rM);
+
 float GetDistence(TVector2 p0, TVector2 p1) {
   float dis = (p0 - p1).Mod();
   return dis;
 }
+
 float GetDistence(TVector2 p0, TVector2 p1, TVector2 p2) {
   float dis = 1. / 3. * ((p0 - p1).Mod() + (p1 - p2).Mod() + (p2 - p0).Mod());
   return dis;
@@ -208,11 +211,8 @@ int main(int argc, char** argv) {
     shuffle(vecAntiPartonsTemp.begin(), vecAntiPartonsTemp.end(), std::default_random_engine(seed + 2));
     vecPartonsTemp.resize(nPartons);
     vecAntiPartonsTemp.resize(nAntiPartons);
-
     vecPartons.insert(vecPartons.end(), vecPartonsTemp.begin(), vecPartonsTemp.end());
     vecPartons.insert(vecPartons.end(), vecAntiPartonsTemp.begin(), vecAntiPartonsTemp.end());
-
-    for (auto sm : vecPartons) cout << sm.GetSerialNumber() << endl;
 
     if (debug) {
       timer.Stop();
@@ -253,14 +253,31 @@ int main(int argc, char** argv) {
     }
 
     // Get Hadrons
+    // vector to record the serial numbers of the used partons
+    vector<unsigned int> vecUsedPartons;
+    // buffer to record the serial numbers of the used partons in this loop
+    vector<unsigned int> vecNodedBuffer;
+
     if (global_sort_mode) {
-      GetHadrons(vecHardons, vecPartons, rM);
+      GetHadrons(vecHardons, vecPartons, vecUsedPartons, rM);
+      if (debug) cout << "Number of partons not been formed to hadrons: " << vecPartons.size() - vecUsedPartons.size() << endl;
+      vector<unsigned int>().swap(vecUsedPartons);
     } else {
+      vector<Parton> vecPartonsRest;
       for (size_t iGrid = 0; iGrid < 3; iGrid++) {
         for (size_t jGrid = 0; jGrid < 3; jGrid++) {
-          GetHadrons(vecHardons, vecPartonsMeshed[iGrid][jGrid], rM);
+          vector<unsigned int>().swap(vecNodedBuffer);
+          GetHadrons(vecHardons, vecPartonsMeshed[iGrid][jGrid], vecNodedBuffer, rM);
+          GetRestPartons(vecPartonsRest, vecPartonsMeshed[iGrid][jGrid], vecNodedBuffer);
+          vecUsedPartons.insert(vecUsedPartons.end(), vecNodedBuffer.begin(), vecNodedBuffer.end());
         }
       }
+      vector<unsigned int>().swap(vecNodedBuffer);
+      if (debug) cout << "Number of partons not been used after coalescence in grid: " << vecPartons.size() - vecUsedPartons.size() << endl;
+      GetHadrons(vecHardons, vecPartonsRest, vecNodedBuffer, rM);
+      vecUsedPartons.insert(vecUsedPartons.end(), vecNodedBuffer.begin(), vecNodedBuffer.end());
+      if (debug) cout << "Number of partons not been used finaly: " << vecPartons.size() - vecUsedPartons.size() << endl;
+      vector<unsigned int>().swap(vecNodedBuffer);
     }
 
     if (debug) {
@@ -446,8 +463,10 @@ int main(int argc, char** argv) {
   }
 }  // main end
 
-void GetHadrons(vector<Hardon>& vecHardons, vector<Parton>& vecPartons, float rM) {
+void GetHadrons(vector<Hardon>& vecHardons, vector<Parton>& vecPartons, vector<unsigned int>& vecNodedBuffer, float rM) {
+  // vector to record all the hardon candidates
   vector<HardonCandidate> vecHardonCandidates;
+
   // Get Meson Candidates
   unsigned int serial_number = 1;
   for (size_t i = 0; i < vecPartons.size(); i++) {
@@ -529,14 +548,11 @@ void GetHadrons(vector<Hardon>& vecHardons, vector<Parton>& vecPartons, float rM
     sort(vecHardonCandidates.begin(), vecHardonCandidates.end());
   }
 
-  // to record the partons have been used
-  vector<unsigned int> vecNodedBuffer;
-
   // for every hardon candidate, if it's partons have not been used, it should be freezed out
   for (auto hardon_candidates : vecHardonCandidates) {
     // assume no partons for this hardon candidate has been used
     bool is_every_parton_free = true;
-    // loop it's partons. If a parton is found in the vecNodeBuffer, no hardon will form
+    // loop it's partons. If a parton is found in the vecNodedBuffer, no hardon will form
     for (auto sm : hardon_candidates.GetVecPartonsSerialNumber()) {
       auto it = find(vecNodedBuffer.begin(), vecNodedBuffer.end(), sm);
       if (it != vecNodedBuffer.end()) {  // find a parton in the buffer
@@ -544,7 +560,7 @@ void GetHadrons(vector<Hardon>& vecHardons, vector<Parton>& vecPartons, float rM
         break;
       }
     }
-    // If no parton is found in the vecNodeBuffer, a hardon will be formed
+    // If no parton is found in the vecNodedBuffer, a hardon will be formed
     if (is_every_parton_free) {
       for (auto sm : hardon_candidates.GetVecPartonsSerialNumber()) {
         auto it = find(vecNodedBuffer.begin(), vecNodedBuffer.end(), sm);
@@ -557,6 +573,12 @@ void GetHadrons(vector<Hardon>& vecHardons, vector<Parton>& vecPartons, float rM
       vecHardons.push_back(hardon);
     }
   }
-  cout << "====================" << endl;
-  for (auto sm : vecNodedBuffer) cout << sm << endl;
+}
+
+void GetRestPartons(vector<Parton>& vecPartonsRest, vector<Parton>& vecPartons, vector<unsigned int>& vecNodedBuffer) {
+  for (auto parton : vecPartons) {
+    if (none_of(vecNodedBuffer.begin(), vecNodedBuffer.end(), [&](unsigned int sn) { return sn == parton.GetSerialNumber(); })) {
+      vecPartonsRest.push_back(parton);
+    }
+  }
 }

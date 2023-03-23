@@ -15,7 +15,7 @@ void Hardon::MomentumBoost(float rho0, float rho2)
 
 void Hardon::SampleRawMomentum(float mass)
 {
-  float pT = 1;
+  float pT = 1.; //GeV
   float phi = gRandom->Uniform(-TMath::Pi(), TMath::Pi());
   p.SetPxPyPzE(pT * cos(phi), pT * sin(phi), 0, pT + mass);
 }
